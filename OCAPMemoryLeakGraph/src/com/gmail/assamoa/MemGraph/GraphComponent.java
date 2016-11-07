@@ -10,21 +10,20 @@ import org.jfree.chart.JFreeChart;
 
 public class GraphComponent extends Component {
 	private static final long serialVersionUID = 3181710662925671350L;
+	// 그래프 이미지를 그릴 버퍼
 	private BufferedImage graphImage;
-
 	private Rectangle area;
 
-	public GraphComponent() {
-		setBounds(0, 0, 960, 540);
-		area = new Rectangle(0, 0, 960, 540);
-		graphImage = new BufferedImage(960, 540, BufferedImage.TYPE_INT_ARGB);
+	public GraphComponent(int w, int h) {
+		setBounds(0, 0, w, h);
+		area = new Rectangle(0, 0, w, h);
+		graphImage = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
 	}
 
 	public void drawChart(JFreeChart chart) {
 		Graphics g = graphImage.getGraphics();
-		g.clearRect(0, 0, 960, 540);
+		g.clearRect(area.x, area.y, area.width, area.height);
 		chart.draw((Graphics2D) g, area);
-		invalidate();
 		repaint();
 	}
 

@@ -82,7 +82,7 @@ class MEMGraph extends JFrame {
 		super(title);
 		setResizable(false);
 		thisContainer = getContentPane();
-		graphComponent = new GraphComponent();
+		graphComponent = new GraphComponent(960, 540);
 		thisContainer.add(graphComponent);
 
 		display();
@@ -270,6 +270,8 @@ class MEMGraph extends JFrame {
 		CategoryPlot plot = chart.getCategoryPlot();
 
 		plot.getDomainAxis().setVisible(false);
+		plot.getDomainAxis().setLowerMargin(0);
+		plot.getDomainAxis().setUpperMargin(0);
 
 		plot.setDataset(0, datasetHeap);
 		plot.setDataset(1, datasetNative);
