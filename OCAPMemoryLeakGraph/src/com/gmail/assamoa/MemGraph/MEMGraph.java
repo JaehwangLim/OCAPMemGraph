@@ -2,10 +2,7 @@ package com.gmail.assamoa.MemGraph;
 
 import java.awt.Color;
 import java.awt.Container;
-import java.awt.Image;
-import java.awt.MediaTracker;
 import java.awt.Rectangle;
-import java.awt.Toolkit;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.WindowAdapter;
@@ -13,6 +10,7 @@ import java.awt.event.WindowEvent;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
+import java.io.IOException;
 import java.util.StringTokenizer;
 
 import javax.swing.JButton;
@@ -24,12 +22,12 @@ import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
 import javax.swing.JRadioButton;
 import javax.swing.JTextField;
+import javax.swing.filechooser.FileNameExtensionFilter;
 
 import org.jfree.chart.ChartFactory;
 import org.jfree.chart.ChartPanel;
 import org.jfree.chart.ChartUtilities;
 import org.jfree.chart.JFreeChart;
-import org.jfree.chart.axis.AxisLocation;
 import org.jfree.chart.axis.NumberAxis;
 import org.jfree.chart.plot.CategoryPlot;
 import org.jfree.chart.renderer.category.CategoryItemRenderer;
@@ -67,28 +65,29 @@ class MEMGraph extends JFrame {
 	private JTextField maxNativeEdit;
 
 	private boolean largeData = false;
+	private boolean includeYounGen = true;
+
+	private DefaultCategoryDataset datasetHeap;
+	private DefaultCategoryDataset datasetNative;
+
+	private GraphComponent graphComponent;
+
+	private JMenu menu;
+	private JMenuItem menuItemOPEN;
+	private JMenuItem menuItemSAVE;
+
+	private JFreeChart chart;
 
 	public MEMGraph(String title) {
 		super(title);
 		setResizable(false);
 		thisContainer = getContentPane();
+		graphComponent = new GraphComponent();
+		thisContainer.add(graphComponent);
 
 		display();
 
 		this.invalidate();
-	}
-
-	public void updateImage(String fileName) {
-		Image image = Toolkit.getDefaultToolkit().createImage(fileName);
-		MediaTracker t = new MediaTracker(this);
-		t.addImage(image, 1);
-		try {
-			t.waitForAll();
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		}
-
-		thisContainer.getGraphics().drawImage(image, 0, 0, null);
 	}
 
 	public void display() {
@@ -98,7 +97,15 @@ class MEMGraph extends JFrame {
 		buttonRefresh.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
 				if (logFile != null) {
-					readLogFile(logFile);
+					boolean younGen = rButtonYounGen.isSelected();
+					// young gen 포함 라이오 버튼이 토글된 경우는 로그파일을 다시 읽어야 함
+					if (younGen != includeYounGen) {
+						includeYounGen = younGen;
+						readLogFile(logFile);
+					} else {
+						// youn gen 포함 여부의 변경이 없으면 paint만 다시 하면 됨
+						refresh();
+					}
 				}
 			}
 		});
@@ -116,12 +123,11 @@ class MEMGraph extends JFrame {
 		minNativeText = new JLabel("  최소Native: ");
 		maxNativeText = new JLabel("  최대Native: ");
 
-		JMenu menu;
-		JMenuItem open = new JMenuItem("Open");
-		open.setActionCommand("o");
-		open.addActionListener(new ActionListener() {
+		menuItemOPEN = new JMenuItem("열기");
+		menuItemSAVE = new JMenuItem("저장");
+
+		menuItemOPEN.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
-				System.out.println("'Open' clicked");
 				JFileChooser chooser = new JFileChooser();
 				if (lastDirectory != null) {
 					chooser.setCurrentDirectory(lastDirectory);
@@ -131,12 +137,36 @@ class MEMGraph extends JFrame {
 					lastDirectory = chooser.getCurrentDirectory();
 					logFile = chooser.getSelectedFile();
 					readLogFile(logFile);
+					menuItemSAVE.setEnabled(true);
 				}
 			}
 		});
 
-		menu = new JMenu("File");
-		menu.add(open);
+		menuItemSAVE.setEnabled(false);
+		menuItemSAVE.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				JFileChooser chooser = new JFileChooser();
+				chooser.setCurrentDirectory(lastDirectory);
+				chooser.setFileFilter(new FileNameExtensionFilter("jpg", new String[] { "jpg" }));
+				chooser.setSelectedFile(new File(logFile.getName() + ".jpg"));
+				int returnVal = chooser.showSaveDialog(null);
+				if (returnVal == JFileChooser.APPROVE_OPTION) {
+					File outFile = chooser.getSelectedFile();
+					if (outFile.exists()) {
+						outFile.delete();
+					}
+					try {
+						ChartUtilities.saveChartAsPNG(outFile, chart, 960, 540);
+					} catch (IOException ee) {
+						ee.printStackTrace();
+					}
+				}
+			}
+		});
+
+		menu = new JMenu("파일");
+		menu.add(menuItemOPEN);
+		menu.add(menuItemSAVE);
 
 		menu.addSeparator();
 
@@ -169,38 +199,14 @@ class MEMGraph extends JFrame {
 		OCAPLogParser parser = new OCAPLogParser();
 		FileReader fr = null;
 		BufferedReader br = null;
-		String fileName = file.getName();
+		largeData = false;
 		try {
 			fr = new FileReader(file);
 			br = new BufferedReader(fr);
 			String line = "";
-			DefaultCategoryDataset datasetHeap = new DefaultCategoryDataset();
-			DefaultCategoryDataset datasetNative = new DefaultCategoryDataset();
+			datasetHeap = new DefaultCategoryDataset();
+			datasetNative = new DefaultCategoryDataset();
 
-			String minHeapSet = minHeapEdit.getText();
-			String maxHeapSet = maxHeapEdit.getText();
-			String minNativeSet = minNativeEdit.getText();
-			String maxNativeSet = maxNativeEdit.getText();
-			try {
-				minHeapAxis = Integer.parseInt(minHeapSet);
-			} catch (Exception e) {
-				minHeapAxis = -1;
-			}
-			try {
-				maxHeapAxis = Integer.parseInt(maxHeapSet);
-			} catch (Exception e) {
-				maxHeapAxis = -1;
-			}
-			try {
-				minNativeAxis = Integer.parseInt(minNativeSet);
-			} catch (Exception e) {
-				minNativeAxis = -1;
-			}
-			try {
-				maxNativeAxis = Integer.parseInt(maxNativeSet);
-			} catch (Exception e) {
-				maxNativeAxis = -1;
-			}
 			int count = 1;
 			boolean oldGen = false;
 			while ((line = br.readLine()) != null) {
@@ -228,12 +234,6 @@ class MEMGraph extends JFrame {
 								} catch (Exception e) {
 								}
 							}
-							// if (maxHeap < heapMem) {
-							// maxHeap = heapMem;
-							// }
-							// if (maxNative < nativeMem) {
-							// maxNative = nativeMem;
-							// }
 							oldGen = false;
 						} catch (Exception ex) {
 						}
@@ -246,97 +246,7 @@ class MEMGraph extends JFrame {
 					}
 				}
 			}
-			// JFreeChart chart = ChartFactory.createLineChart("MEM", "time",
-			// "byte", datasetHeap);
-			JFreeChart chart = ChartFactory.createLineChart("MEM", "time", "byte", null);
-			// // Axis
-			// ValueAxis axis = (ValueAxis)
-			// chart.getCategoryPlot().getRangeAxis();
-			//
-			// if (minHeapAxis > -1) {
-			// if (maxHeapAxis > -1) {
-			// axis.setRange(minHeapAxis, maxHeapAxis);
-			// } else {
-			// axis.setRange(minHeapAxis, maxHeap);
-			// }
-			// } else if (maxHeapAxis > -1) {
-			// axis.setRange(0, maxHeapAxis);
-			// } else {
-			// // auto set minVal ~ maxVal
-			// }
-
-			CategoryPlot plot = chart.getCategoryPlot();
-
-			plot.setDomainAxisLocation(AxisLocation.BOTTOM_OR_RIGHT);
-			plot.getDomainAxis().setVisible(false);
-
-			plot.setDataset(0, datasetHeap);
-			plot.setDataset(1, datasetNative);
-
-			NumberAxis heapAxis = new NumberAxis("Free Heap");
-			// heapAxis.setAutoRangeIncludesZero(false);
-			heapAxis.setLabelPaint(Color.blue);
-			if (minHeapAxis > -1) {
-				if (maxHeapAxis > -1) {
-					heapAxis.setRange(minHeapAxis, maxHeapAxis);
-				} else {
-					heapAxis.setRange(minHeapAxis, maxHeap);
-				}
-			} else if (maxHeapAxis > -1) {
-				heapAxis.setRange(0, maxHeapAxis);
-			} else {
-				heapAxis.setRange(0, maxHeap);
-			}
-
-			NumberAxis nativeAxis = new NumberAxis("Free Native");
-			// nativeAxis.setAutoRangeIncludesZero(false);
-			nativeAxis.setLabelPaint(Color.red);
-			if (minNativeAxis > -1) {
-				if (maxNativeAxis > -1) {
-					nativeAxis.setRange(minNativeAxis, maxNativeAxis);
-				} else {
-					nativeAxis.setRange(minNativeAxis, maxNative);
-				}
-			} else if (maxNativeAxis > -1) {
-				nativeAxis.setRange(0, maxNativeAxis);
-			} else {
-				nativeAxis.setRange(0, maxNative);
-			}
-
-			plot.setRangeAxis(0, heapAxis);
-			plot.setRangeAxis(1, nativeAxis);
-
-			plot.mapDatasetToRangeAxis(0, 0);
-			plot.mapDatasetToRangeAxis(1, 1);
-
-			CategoryItemRenderer renderer1 = new LineAndShapeRenderer();
-			renderer1.setSeriesPaint(0, Color.blue);
-			Rectangle r = new Rectangle(0, 0, 0, 0);
-			renderer1.setBaseShape(r);
-			renderer1.setSeriesShape(0, r);
-
-			CategoryItemRenderer renderer2 = new LineAndShapeRenderer();
-			renderer2.setSeriesPaint(0, Color.red);
-			renderer2.setBaseShape(r);
-			renderer2.setSeriesShape(0, r);
-
-			plot.setRenderer(0, renderer1);
-			plot.setRenderer(1, renderer2);
-
-			chart.setBackgroundPaint(java.awt.Color.white);
-			chart.setTitle(fileName);
-
-			ChartPanel chartPanel = new ChartPanel(chart);
-			chartPanel.setPreferredSize(new java.awt.Dimension(500, 270));
-			thisContainer.add(chartPanel);
-			thisContainer.invalidate();
-
-			// setContentPane(chartPanel);
-
-			File outFile = new File(fileName + ".jpg");
-			ChartUtilities.saveChartAsPNG(outFile, chart, 960, 540);
-
-			updateImage(fileName + ".jpg");
+			refresh();
 			System.out.println("DONE:" + (largeData ? "A LOT OF" : "" + count) + " memory logs");
 		} catch (Exception ex) {
 			ex.printStackTrace();
@@ -350,15 +260,105 @@ class MEMGraph extends JFrame {
 			} catch (Exception ex) {
 			}
 		}
+
+	}
+
+	private void refresh() {
+		System.out.println("refresh...");
+		chart = ChartFactory.createLineChart("MEM", "time", "byte", null);
+
+		CategoryPlot plot = chart.getCategoryPlot();
+
+		plot.getDomainAxis().setVisible(false);
+
+		plot.setDataset(0, datasetHeap);
+		plot.setDataset(1, datasetNative);
+
+		String minHeapSet = minHeapEdit.getText();
+		String maxHeapSet = maxHeapEdit.getText();
+		String minNativeSet = minNativeEdit.getText();
+		String maxNativeSet = maxNativeEdit.getText();
+		try {
+			minHeapAxis = Integer.parseInt(minHeapSet);
+		} catch (Exception e) {
+			minHeapAxis = -1;
+		}
+		try {
+			maxHeapAxis = Integer.parseInt(maxHeapSet);
+		} catch (Exception e) {
+			maxHeapAxis = -1;
+		}
+		try {
+			minNativeAxis = Integer.parseInt(minNativeSet);
+		} catch (Exception e) {
+			minNativeAxis = -1;
+		}
+		try {
+			maxNativeAxis = Integer.parseInt(maxNativeSet);
+		} catch (Exception e) {
+			maxNativeAxis = -1;
+		}
+
+		NumberAxis heapAxis = new NumberAxis("Free Heap");
+		heapAxis.setLabelPaint(Color.blue);
+		if (minHeapAxis > -1) {
+			if (maxHeapAxis > -1) {
+				heapAxis.setRange(minHeapAxis, maxHeapAxis);
+			} else {
+				heapAxis.setRange(minHeapAxis, maxHeap);
+			}
+		} else if (maxHeapAxis > -1) {
+			heapAxis.setRange(0, maxHeapAxis);
+		} else {
+			heapAxis.setRange(0, maxHeap);
+		}
+
+		NumberAxis nativeAxis = new NumberAxis("Free Native");
+		nativeAxis.setLabelPaint(Color.red);
+		if (minNativeAxis > -1) {
+			if (maxNativeAxis > -1) {
+				nativeAxis.setRange(minNativeAxis, maxNativeAxis);
+			} else {
+				nativeAxis.setRange(minNativeAxis, maxNative);
+			}
+		} else if (maxNativeAxis > -1) {
+			nativeAxis.setRange(0, maxNativeAxis);
+		} else {
+			nativeAxis.setRange(0, maxNative);
+		}
+
+		plot.setRangeAxis(0, heapAxis);
+		plot.setRangeAxis(1, nativeAxis);
+
+		plot.mapDatasetToRangeAxis(0, 0);
+		plot.mapDatasetToRangeAxis(1, 1);
+
+		CategoryItemRenderer renderer1 = new LineAndShapeRenderer();
+		renderer1.setSeriesPaint(0, Color.blue);
+		Rectangle r = new Rectangle(0, 0, 0, 0);
+		renderer1.setBaseShape(r);
+		renderer1.setSeriesShape(0, r);
+
+		CategoryItemRenderer renderer2 = new LineAndShapeRenderer();
+		renderer2.setSeriesPaint(0, Color.red);
+		renderer2.setBaseShape(r);
+		renderer2.setSeriesShape(0, r);
+
+		plot.setRenderer(0, renderer1);
+		plot.setRenderer(1, renderer2);
+
+		chart.setBackgroundPaint(java.awt.Color.white);
+		chart.setTitle(logFile.getName());
+
+		ChartPanel chartPanel = new ChartPanel(chart);
+		chartPanel.setPreferredSize(new java.awt.Dimension(500, 270));
+		thisContainer.add(chartPanel);
+		thisContainer.invalidate();
+
+		graphComponent.drawChart(chart);
 	}
 
 	public static void main(String[] args) {
-
-		// String text = "!0x44A55520|JVM| Free Memory: Heap [
-		// 5924924/12582912], Native[36769816/58720256]";
-		//
-		// System.out.println(new OCAPLogParser().getMaxMem(text));
-
 		MEMGraph hs = new MEMGraph("OCAP Memory Graph Generator");
 		hs.addWindowListener(new WindowAdapter() {
 			public void windowClosing(WindowEvent we) {
