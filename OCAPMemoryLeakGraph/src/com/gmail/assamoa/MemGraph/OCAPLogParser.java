@@ -65,4 +65,38 @@ public class OCAPLogParser {
 		}
 		return null;
 	}
+
+	public String getMaxMem(String log) {
+		Pattern pattern = Pattern.compile(MEM_PATTERN);
+		Matcher matcher = pattern.matcher(log);
+
+		String freeHeapMem = null;
+		String freeNativeMem = null;
+
+		if (matcher.find()) {
+			Pattern heapMem = Pattern.compile("Heap\\s*\\[\\s*\\d+/\\s*\\d+");
+			Pattern nativeMem = Pattern.compile("Native\\s*\\[\\s*\\d+/\\s*\\d+");
+			Matcher matcherHeap = heapMem.matcher(log);
+			Matcher matcherNative = nativeMem.matcher(log);
+			if (matcherHeap.find()) {
+				String freeHeap = matcherHeap.group();
+				Matcher mem = Pattern.compile("\\d+").matcher(freeHeap);
+
+				if (mem.find() && mem.find()) {
+					freeHeapMem = mem.group();
+				}
+			}
+			if (matcherNative.find()) {
+				String freeNative = matcherNative.group();
+				Matcher mem = Pattern.compile("\\d+").matcher(freeNative);
+				if (mem.find() && mem.find()) {
+					freeNativeMem = mem.group();
+				}
+			}
+		}
+		if (freeHeapMem != null && freeNativeMem != null) {
+			return freeHeapMem + "|" + freeNativeMem;
+		}
+		return null;
+	}
 }

@@ -45,11 +45,11 @@ class MEMGraph extends JFrame {
 	private Container thisContainer;
 	private int minHeapAxis = -1;
 	private int maxHeapAxis = -1;
-	private int maxHeap = 0;
+	private int maxHeap = 1;
 
 	private int minNativeAxis = -1;
 	private int maxNativeAxis = -1;
-	private int maxNative = 0;
+	private int maxNative = 1;
 
 	private File logFile;
 	private File lastDirectory;
@@ -65,6 +65,8 @@ class MEMGraph extends JFrame {
 	private JLabel maxNativeText;
 	private JTextField minNativeEdit;
 	private JTextField maxNativeEdit;
+
+	private boolean largeData = false;
 
 	public MEMGraph(String title) {
 		super(title);
@@ -102,7 +104,7 @@ class MEMGraph extends JFrame {
 		});
 
 		rButtonYounGen = new JRadioButton("YounGenÆ÷ÇÔ");
-		rButtonYounGen.setSelected(false);
+		rButtonYounGen.setSelected(true);
 
 		minHeapEdit = new JTextField(3);
 		maxHeapEdit = new JTextField(3);
@@ -213,12 +215,25 @@ class MEMGraph extends JFrame {
 							datasetHeap.addValue(heapMem, "Free Heap", "" + count);
 							datasetNative.addValue(nativeMem, "Free Native", "" + count);
 							count++;
-							if (maxHeap < heapMem) {
-								maxHeap = heapMem;
+							if (count == Integer.MAX_VALUE) {
+								count = 0;
+								largeData = true;
 							}
-							if (maxNative < nativeMem) {
-								maxNative = nativeMem;
+							if (maxHeap == 1) {
+								String maxMem = parser.getMaxMem(line);
+								StringTokenizer token2 = new StringTokenizer(maxMem, "|");
+								try {
+									maxHeap = Integer.parseInt(token2.nextToken());
+									maxNative = Integer.parseInt(token2.nextToken());
+								} catch (Exception e) {
+								}
 							}
+							// if (maxHeap < heapMem) {
+							// maxHeap = heapMem;
+							// }
+							// if (maxNative < nativeMem) {
+							// maxNative = nativeMem;
+							// }
 							oldGen = false;
 						} catch (Exception ex) {
 						}
@@ -270,7 +285,7 @@ class MEMGraph extends JFrame {
 			} else if (maxHeapAxis > -1) {
 				heapAxis.setRange(0, maxHeapAxis);
 			} else {
-				// auto set minVal ~ maxVal
+				heapAxis.setRange(0, maxHeap);
 			}
 
 			NumberAxis nativeAxis = new NumberAxis("Free Native");
@@ -285,7 +300,7 @@ class MEMGraph extends JFrame {
 			} else if (maxNativeAxis > -1) {
 				nativeAxis.setRange(0, maxNativeAxis);
 			} else {
-				// auto set minVal ~ maxVal
+				nativeAxis.setRange(0, maxNative);
 			}
 
 			plot.setRangeAxis(0, heapAxis);
@@ -322,7 +337,7 @@ class MEMGraph extends JFrame {
 			ChartUtilities.saveChartAsPNG(outFile, chart, 960, 540);
 
 			updateImage(fileName + ".jpg");
-			System.out.println("DONE:" + count + " memory logs");
+			System.out.println("DONE:" + (largeData ? "A LOT OF" : "" + count) + " memory logs");
 		} catch (Exception ex) {
 			ex.printStackTrace();
 		} finally {
@@ -338,6 +353,12 @@ class MEMGraph extends JFrame {
 	}
 
 	public static void main(String[] args) {
+
+		// String text = "!0x44A55520|JVM| Free Memory: Heap [
+		// 5924924/12582912], Native[36769816/58720256]";
+		//
+		// System.out.println(new OCAPLogParser().getMaxMem(text));
+
 		MEMGraph hs = new MEMGraph("OCAP Memory Graph Generator");
 		hs.addWindowListener(new WindowAdapter() {
 			public void windowClosing(WindowEvent we) {
