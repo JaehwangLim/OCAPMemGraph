@@ -1,4 +1,4 @@
-package com.gmail.assamoa.MemGraph;
+package com.gmail.assamoa.memgraph;
 
 import java.awt.Component;
 import java.awt.Graphics;
@@ -10,7 +10,7 @@ import org.jfree.chart.JFreeChart;
 
 public class GraphComponent extends Component {
 	private static final long serialVersionUID = 3181710662925671350L;
-	// ±×·¡ÇÁ ÀÌ¹ÌÁö¸¦ ±×¸± ¹öÆÛ
+	// ê·¸ë˜í”„ ì´ë¯¸ì§€ë¥¼ ê·¸ë¦´ ë²„í¼
 	private BufferedImage graphImage;
 	private Rectangle area;
 
