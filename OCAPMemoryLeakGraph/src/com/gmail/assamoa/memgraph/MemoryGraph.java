@@ -11,10 +11,11 @@ import org.jfree.chart.ChartPanel;
 import org.jfree.chart.ChartUtilities;
 import org.jfree.chart.JFreeChart;
 import org.jfree.chart.axis.NumberAxis;
-import org.jfree.chart.plot.CategoryPlot;
-import org.jfree.chart.renderer.category.CategoryItemRenderer;
-import org.jfree.chart.renderer.category.LineAndShapeRenderer;
-import org.jfree.data.category.DefaultCategoryDataset;
+import org.jfree.chart.plot.XYPlot;
+import org.jfree.chart.renderer.xy.DefaultXYItemRenderer;
+import org.jfree.chart.renderer.xy.XYItemRenderer;
+import org.jfree.data.xy.XYSeries;
+import org.jfree.data.xy.XYSeriesCollection;
 
 public class MemoryGraph {
 	public static final int GRAPH_WIDTH = 960;
@@ -24,7 +25,7 @@ public class MemoryGraph {
 
 	private JFreeChart chart;
 	private ChartPanel chartPanel;
-	private CategoryPlot plot;
+	private XYPlot xyPlot;
 
 	private long minHeapAxis = MEMORY_SIZE_UNKNOWN;
 	private long maxHeapAxis = MEMORY_SIZE_UNKNOWN;
@@ -45,18 +46,15 @@ public class MemoryGraph {
 		this.fileName = fileName;
 
 		// 챠트를 생성한다.
-		chart = ChartFactory.createLineChart("MEM", "time", "byte", null);
+		chart = ChartFactory.createXYLineChart("Mem", "count", "free Heap", null);
 		chartPanel = new ChartPanel(chart);
 
 		// x,y 축 편집
-		plot = chart.getCategoryPlot();
-
-		// x축의 글자표시를 없앤다
-		plot.getDomainAxis().setVisible(false);
+		xyPlot = chart.getXYPlot();
 
 		// x축의 좌우 여백을 없앤다
-		plot.getDomainAxis().setLowerMargin(0);
-		plot.getDomainAxis().setUpperMargin(0);
+		xyPlot.getDomainAxis().setLowerMargin(0);
+		xyPlot.getDomainAxis().setUpperMargin(0);
 
 		// y축을 생성한다.heap-파랑, native-빨강
 		heapAxis = new NumberAxis("Free Heap");
@@ -65,25 +63,25 @@ public class MemoryGraph {
 		nativeAxis.setLabelPaint(Color.red);
 
 		// y축을 나눈다. heap-왼쪽, native-오른쪽
-		plot.setRangeAxis(0, heapAxis);
-		plot.setRangeAxis(1, nativeAxis);
-		plot.mapDatasetToRangeAxis(0, 0);
-		plot.mapDatasetToRangeAxis(1, 1);
+		xyPlot.setRangeAxis(0, heapAxis);
+		xyPlot.setRangeAxis(1, nativeAxis);
+		xyPlot.mapDatasetToRangeAxis(0, 0);
+		xyPlot.mapDatasetToRangeAxis(1, 1);
 
 		// heap/native 그래프의 속성 정의. heap-파랑, native-빨강. 둘다 선으로만 그리도록...
-		CategoryItemRenderer renderer1 = new LineAndShapeRenderer();
+		XYItemRenderer renderer1 = new DefaultXYItemRenderer();
 		renderer1.setSeriesPaint(0, Color.blue);
 		Rectangle r = new Rectangle(0, 0, 0, 0);
 		renderer1.setBaseShape(r);
 		renderer1.setSeriesShape(0, r);
 
-		CategoryItemRenderer renderer2 = new LineAndShapeRenderer();
+		XYItemRenderer renderer2 = new DefaultXYItemRenderer();
 		renderer2.setSeriesPaint(0, Color.red);
 		renderer2.setBaseShape(r);
 		renderer2.setSeriesShape(0, r);
 
-		plot.setRenderer(0, renderer1);
-		plot.setRenderer(1, renderer2);
+		xyPlot.setRenderer(0, renderer1);
+		xyPlot.setRenderer(1, renderer2);
 
 		chart.setBackgroundPaint(java.awt.Color.white);
 		chart.setTitle(this.fileName);
@@ -163,11 +161,11 @@ public class MemoryGraph {
 		}
 	}
 
-	public void setData(DefaultCategoryDataset heapMem, DefaultCategoryDataset nativeMem) {
-		plot.setDataset(0, heapMem);
-		plot.setDataset(1, nativeMem);
-	}
-
+	/**
+	 * 현재 그래프를 jpg 파일로 저장한다.
+	 * @param outFile
+	 * @return
+	 */
 	public boolean storeGraphImage(File outFile) {
 		try {
 			ChartUtilities.saveChartAsPNG(outFile, chart, GRAPH_WIDTH, GRAPH_HEIGHT);
@@ -183,5 +181,15 @@ public class MemoryGraph {
 
 	public ChartPanel getChartPanel() {
 		return chartPanel;
+	}
+
+	/**
+	 * 그래프 데이터를 전달해 준다.
+	 * @param heapSeries
+	 * @param nativeSeries
+	 */
+	public void setData(XYSeries heapSeries, XYSeries nativeSeries) {
+		xyPlot.setDataset(0, new XYSeriesCollection(heapSeries));
+		xyPlot.setDataset(1, new XYSeriesCollection(nativeSeries));
 	}
 }

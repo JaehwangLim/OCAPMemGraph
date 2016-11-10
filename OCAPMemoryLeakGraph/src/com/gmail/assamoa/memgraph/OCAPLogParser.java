@@ -9,6 +9,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.jfree.data.category.DefaultCategoryDataset;
+import org.jfree.data.xy.XYDataset;
+import org.jfree.data.xy.XYSeries;
 
 public class OCAPLogParser {
 	public static final String TIME_PATTERN = "\\d+:\\d{2}:\\d{1,}"; // xxx:yy.zzz => xxx분 yy초 zzz밀리초
@@ -33,6 +35,11 @@ public class OCAPLogParser {
 
 	private DefaultCategoryDataset datasetHeap;
 	private DefaultCategoryDataset datasetNative;
+	private XYSeries heapSeries;
+	private XYSeries nativeSeries;
+
+	private XYDataset heapDataset;
+	private XYDataset nativeDataset;
 
 	public OCAPLogParser(boolean bParseYoungGen, boolean isTimeIncluded) {
 		this.bParseYoungGen = bParseYoungGen;
@@ -82,6 +89,9 @@ public class OCAPLogParser {
 
 		datasetHeap = new DefaultCategoryDataset();
 		datasetNative = new DefaultCategoryDataset();
+		heapSeries = new XYSeries("Heap");
+		nativeSeries = new XYSeries("Native");
+
 	}
 
 	private void checkLine(String line) {
@@ -119,9 +129,15 @@ public class OCAPLogParser {
 					// 로그수집 시간이 있는경우, count가 아닌, 시간 기준으로 데이터를 입력한다.
 					datasetHeap.addValue(heapMem, "Free Heap", new Date(timeValue + count));
 					datasetNative.addValue(nativeMem, "Free Native", new Date(timeValue + count));
+
+					heapSeries.add(count, heapMem);
+					nativeSeries.add(count, nativeMem);
 				} else {
 					datasetHeap.addValue(heapMem, "Free Heap", "" + count);
 					datasetNative.addValue(nativeMem, "Free Native", "" + count);
+
+					heapSeries.add(count, heapMem);
+					nativeSeries.add(count, nativeMem);
 				}
 
 				// Heap memory의 MAX값이 설정되지 않은 경우, Heap/Native의 MAX값을 파싱해서 가지고 있는다
@@ -285,5 +301,21 @@ public class OCAPLogParser {
 	 */
 	public DefaultCategoryDataset getDatasetNative() {
 		return datasetNative;
+	}
+
+	public XYSeries getHeapSeries() {
+		return heapSeries;
+	}
+
+	public XYSeries getNativeSeries() {
+		return nativeSeries;
+	}
+
+	public XYDataset getHeapDataset() {
+		return heapDataset;
+	}
+
+	public XYDataset getNativeDataset() {
+		return nativeDataset;
 	}
 }

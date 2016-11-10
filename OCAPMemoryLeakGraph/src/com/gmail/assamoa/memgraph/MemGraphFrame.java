@@ -198,8 +198,8 @@ public class MemGraphFrame extends JFrame {
 		logParser = new OCAPLogParser(rButtonYounGen.isSelected(), rButtonTime.isSelected());
 		logParser.readLogFile(logFile);
 		memoryGraph = new MemoryGraph(logParser.getTotalHeapSize(), logParser.getTotalNativeSize(), logFile.getName());
-		memoryGraph.setData(logParser.getDatasetHeap(), logParser.getDatasetNative());
-
+		// memoryGraph.setData(logParser.getDatasetHeap(), logParser.getDatasetNative());
+		memoryGraph.setData(logParser.getHeapSeries(), logParser.getNativeSeries());
 		drawGraph();
 	}
 
@@ -208,6 +208,7 @@ public class MemGraphFrame extends JFrame {
 	 */
 	private void drawGraph() {
 		memoryGraph.checkMinMaxY(minHeapEdit, maxHeapEdit, minNativeEdit, maxNativeEdit);
-		graphComponent.drawChart(memoryGraph.getChart());
+		add(memoryGraph.getChartPanel());
+		// graphComponent.drawChart(memoryGraph.getChart());
 	}
 }
