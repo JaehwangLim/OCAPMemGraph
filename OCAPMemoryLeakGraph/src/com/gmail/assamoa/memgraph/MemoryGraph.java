@@ -14,6 +14,8 @@ import org.jfree.chart.axis.NumberAxis;
 import org.jfree.chart.plot.XYPlot;
 import org.jfree.chart.renderer.xy.DefaultXYItemRenderer;
 import org.jfree.chart.renderer.xy.XYItemRenderer;
+import org.jfree.data.time.TimeSeries;
+import org.jfree.data.time.TimeSeriesCollection;
 import org.jfree.data.xy.XYSeries;
 import org.jfree.data.xy.XYSeriesCollection;
 
@@ -40,13 +42,17 @@ public class MemoryGraph {
 
 	private String fileName;
 
-	public MemoryGraph(long maxFreeHeap, long maxFreeNative, String fileName) {
+	public MemoryGraph(long maxFreeHeap, long maxFreeNative, String fileName, boolean timeSeries) {
 		this.maxFreeHeap = maxFreeHeap;
 		this.maxFreeNative = maxFreeNative;
 		this.fileName = fileName;
 
 		// 챠트를 생성한다.
-		chart = ChartFactory.createXYLineChart("Mem", "count", "free Heap", null);
+		if (timeSeries) {
+			chart = ChartFactory.createTimeSeriesChart("Mem", "time", "free Heap", null);
+		} else {
+			chart = ChartFactory.createXYLineChart("Mem", "count", "free Heap", null);
+		}
 		chartPanel = new ChartPanel(chart);
 
 		// x,y 축 편집
@@ -191,5 +197,10 @@ public class MemoryGraph {
 	public void setData(XYSeries heapSeries, XYSeries nativeSeries) {
 		xyPlot.setDataset(0, new XYSeriesCollection(heapSeries));
 		xyPlot.setDataset(1, new XYSeriesCollection(nativeSeries));
+	}
+
+	public void setData(TimeSeries heapSeries, TimeSeries nativeSeries) {
+		xyPlot.setDataset(0, new TimeSeriesCollection(heapSeries));
+		xyPlot.setDataset(1, new TimeSeriesCollection(nativeSeries));
 	}
 }

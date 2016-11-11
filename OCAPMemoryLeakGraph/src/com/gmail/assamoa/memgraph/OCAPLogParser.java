@@ -3,18 +3,17 @@ package com.gmail.assamoa.memgraph;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
+import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.StringTokenizer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import org.jfree.data.category.DefaultCategoryDataset;
-import org.jfree.data.xy.XYDataset;
+import org.jfree.data.time.Millisecond;
+import org.jfree.data.time.TimeSeries;
 import org.jfree.data.xy.XYSeries;
 
 public class OCAPLogParser {
-	public static final String TIME_PATTERN = "\\d+:\\d{2}:\\d{1,}"; // xxx:yy.zzz => xxx분 yy초 zzz밀리초
-
 	// GC후 free 메모리를 찍는 로그의 패턴
 	public static final String FREE_MEM_LOG_PATTERN = "Heap\\s*\\[\\s*\\d+/\\s*\\d+\\],\\s*Native\\s*\\[\\s*\\d+/\\s*\\d+\\]";
 
@@ -26,24 +25,58 @@ public class OCAPLogParser {
 
 	private int totalNativeSize = MEMORY_SIZE_UNKNOWN; // Native Memory의 최대값
 
-	private long count; // 메모리 로그 개수 -> 그래프 그릴 값들의 수
+	private int count; // 메모리 로그 개수 -> 그래프 그릴 값들의 수. JFreeChart 에서는 Integer.MAX_VALUE 개의 데이터만 지원 한다.
 
 	boolean oldGenFound = false; // OLD GEN end 로그를 찾았는지
 	boolean youngGenFound = false; // YOUNG GEN end 로그를 찾았는지
 	private boolean isTimeIncluded = false; // TODO: JFrame의 시간포함 라디오버튼 설정값 읽어와야 함
 	private boolean bParseYoungGen = true; // TODO: JFrame의 YoungGen 포함 라디오버튼 설정값 읽어와야 함
 
-	private DefaultCategoryDataset datasetHeap;
-	private DefaultCategoryDataset datasetNative;
+	private SimpleDateFormat timeFormat;
 	private XYSeries heapSeries;
 	private XYSeries nativeSeries;
 
-	private XYDataset heapDataset;
-	private XYDataset nativeDataset;
+	private TimeSeries heapTimeSeries;
+	private TimeSeries nativeTimeSeries;
+	private int errorCount;
 
-	public OCAPLogParser(boolean bParseYoungGen, boolean isTimeIncluded) {
+	/**
+	* timeFormat
+	*	G  Era designator  Text  AD  
+	*	y  Year  Year  1996; 96  
+	*	Y  Week year  Year  2009; 09  
+	*	M  Month in year (context sensitive)  Month  July; Jul; 07  
+	*	L  Month in year (standalone form)  Month  July; Jul; 07  
+	*	w  Week in year  Number  27  
+	*	W  Week in month  Number  2  
+	*	D  Day in year  Number  189  
+	*	d  Day in month  Number  10  
+	*	F  Day of week in month  Number  2  
+	*	E  Day name in week  Text  Tuesday; Tue  
+	*	u  Day number of week (1 = Monday, ..., 7 = Sunday)  Number  1  
+	*	a  Am/pm marker  Text  PM  
+	*	H  Hour in day (0-23)  Number  0  
+	*	k  Hour in day (1-24)  Number  24  
+	*	K  Hour in am/pm (0-11)  Number  0  
+	*	h  Hour in am/pm (1-12)  Number  12  
+	*	m  Minute in hour  Number  30  
+	*	s  Second in minute  Number  55  
+	*	S  Millisecond  Number  978  
+	*	z  Time zone  General time zone  Pacific Standard Time; PST; GMT-08:00  
+	*	Z  Time zone  RFC 822 time zone  -0800  
+	*	X  Time zone  ISO 8601 time zone  -08; -0800; -08:00  
+	*		
+	 * @param bParseYoungGen
+	 * @param isTimeIncluded
+	 * @param timeFormat
+	 */
+	public OCAPLogParser(boolean bParseYoungGen, boolean isTimeIncluded, String timeFormat) {
 		this.bParseYoungGen = bParseYoungGen;
 		this.isTimeIncluded = isTimeIncluded;
+
+		if (isTimeIncluded) {
+			this.timeFormat = new SimpleDateFormat(timeFormat);
+		}
 	}
 
 	/**
@@ -56,6 +89,8 @@ public class OCAPLogParser {
 		FileReader fr = null;
 		BufferedReader br = null;
 		largeData = false;
+		errorCount = 0;
+
 		try {
 			fr = new FileReader(file);
 			br = new BufferedReader(fr);
@@ -65,7 +100,7 @@ public class OCAPLogParser {
 			while ((line = br.readLine()) != null) {
 				checkLine(line);
 			}
-			System.out.println("DONE:" + (largeData ? "A LOT OF" : "" + count) + " memory logs");
+			System.out.println("DONE:" + (largeData ? "A LOT OF" : "" + count) + " memory logs, " + errorCount + " errors.");
 		} catch (Exception ex) {
 			ex.printStackTrace();
 		} finally {
@@ -87,11 +122,11 @@ public class OCAPLogParser {
 		oldGenFound = false; // OLD GEN end 로그를 찾았는지
 		youngGenFound = false; // YOUNG GEN end 로그를 찾았는지
 
-		datasetHeap = new DefaultCategoryDataset();
-		datasetNative = new DefaultCategoryDataset();
 		heapSeries = new XYSeries("Heap");
 		nativeSeries = new XYSeries("Native");
 
+		heapTimeSeries = new TimeSeries("Heap");
+		nativeTimeSeries = new TimeSeries("Native");
 	}
 
 	private void checkLine(String line) {
@@ -123,19 +158,19 @@ public class OCAPLogParser {
 				int nativeMem = Integer.parseInt(token.nextToken());
 
 				if (parseTime) { // dataset에 heap/native free memory 량을 추가 한다
-					//// 로그시간 처리 테스트용
-					long timeValue = System.currentTimeMillis();
-					////
 					// 로그수집 시간이 있는경우, count가 아닌, 시간 기준으로 데이터를 입력한다.
-					datasetHeap.addValue(heapMem, "Free Heap", new Date(timeValue + count));
-					datasetNative.addValue(nativeMem, "Free Native", new Date(timeValue + count));
 
-					heapSeries.add(count, heapMem);
-					nativeSeries.add(count, nativeMem);
+					Date d = parseTime(line);
+					if (d != null) {
+						Millisecond ms = new Millisecond(d);
+						heapTimeSeries.add(ms, heapMem);
+						nativeTimeSeries.add(ms, nativeMem);
+					} else {
+						// 시간 값을 제대로 파싱하지 못한 경우
+						// 에러 카운트 계산 하자
+						errorCount++;
+					}
 				} else {
-					datasetHeap.addValue(heapMem, "Free Heap", "" + count);
-					datasetNative.addValue(nativeMem, "Free Native", "" + count);
-
 					heapSeries.add(count, heapMem);
 					nativeSeries.add(count, nativeMem);
 				}
@@ -147,6 +182,7 @@ public class OCAPLogParser {
 				}
 
 			} catch (Exception ex) {
+				errorCount++;
 			}
 			return true; // 이 로그는 Old Gen 로그가 맞음
 		} else {
@@ -163,7 +199,7 @@ public class OCAPLogParser {
 	 * 메모리 로그 count를 증가 시킨다.
 	 */
 	private void increaseCount() {
-		if (count < Long.MAX_VALUE) {
+		if (count < Integer.MAX_VALUE) {
 			count++;
 		} else {
 			count = 0;
@@ -254,6 +290,14 @@ public class OCAPLogParser {
 		}
 	}
 
+	private Date parseTime(String log) {
+		try {
+			return timeFormat.parse(log);
+		} catch (Exception e) {
+		}
+		return null;
+	}
+
 	/**
 	 * 메모리 로그의 개수가 Long 의 최대값보다 많은지를 리턴한다.<br>
 	 * true인 경우, {@link #getCount()}가 리턴하는 값은 유효하지 않다.<br>
@@ -283,24 +327,8 @@ public class OCAPLogParser {
 	 * 메모리 로그의 개수를 리턴한다
 	 * @return
 	 */
-	public long getCount() {
+	public int getCount() {
 		return count;
-	}
-
-	/**
-	 * Heap 메모리의 그래프 데이터를 리턴한다.
-	 * @return
-	 */
-	public DefaultCategoryDataset getDatasetHeap() {
-		return datasetHeap;
-	}
-
-	/**
-	 * Native 메모리의 그래프 데이터를 리턴한다.
-	 * @return
-	 */
-	public DefaultCategoryDataset getDatasetNative() {
-		return datasetNative;
 	}
 
 	public XYSeries getHeapSeries() {
@@ -311,11 +339,11 @@ public class OCAPLogParser {
 		return nativeSeries;
 	}
 
-	public XYDataset getHeapDataset() {
-		return heapDataset;
+	public TimeSeries getHeapTimeSeries() {
+		return heapTimeSeries;
 	}
 
-	public XYDataset getNativeDataset() {
-		return nativeDataset;
+	public TimeSeries getNativeTimeSeries() {
+		return nativeTimeSeries;
 	}
 }

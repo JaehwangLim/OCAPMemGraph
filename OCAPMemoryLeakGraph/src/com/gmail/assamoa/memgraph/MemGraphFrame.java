@@ -140,7 +140,9 @@ public class MemGraphFrame extends JFrame {
 		menuItemSAVE.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
 				chooser.setFileFilter(new FileNameExtensionFilter("jpg", new String[] { "jpg" }));
-				chooser.setSelectedFile(new File(chooser.getSelectedFile().getName() + ".jpg"));
+				if (logFile != null) {
+					chooser.setSelectedFile(new File(logFile.getName() + ".jpg"));
+				}
 				int returnVal = chooser.showSaveDialog(null);
 				if (returnVal == JFileChooser.APPROVE_OPTION) {
 					File outFile = chooser.getSelectedFile();
@@ -195,11 +197,14 @@ public class MemGraphFrame extends JFrame {
 	 * 로그파일을 파싱하고 그래프를 그린다.
 	 */
 	private void parseLog() {
-		logParser = new OCAPLogParser(rButtonYounGen.isSelected(), rButtonTime.isSelected());
+		logParser = new OCAPLogParser(rButtonYounGen.isSelected(), rButtonTime.isSelected(), timeFormat.getText());
 		logParser.readLogFile(logFile);
-		memoryGraph = new MemoryGraph(logParser.getTotalHeapSize(), logParser.getTotalNativeSize(), logFile.getName());
-		// memoryGraph.setData(logParser.getDatasetHeap(), logParser.getDatasetNative());
-		memoryGraph.setData(logParser.getHeapSeries(), logParser.getNativeSeries());
+		memoryGraph = new MemoryGraph(logParser.getTotalHeapSize(), logParser.getTotalNativeSize(), logFile.getName(), rButtonTime.isSelected());
+		if (rButtonTime.isSelected()) {
+			memoryGraph.setData(logParser.getHeapTimeSeries(), logParser.getNativeTimeSeries());
+		} else {
+			memoryGraph.setData(logParser.getHeapSeries(), logParser.getNativeSeries());
+		}
 		drawGraph();
 	}
 
@@ -208,7 +213,7 @@ public class MemGraphFrame extends JFrame {
 	 */
 	private void drawGraph() {
 		memoryGraph.checkMinMaxY(minHeapEdit, maxHeapEdit, minNativeEdit, maxNativeEdit);
-		add(memoryGraph.getChartPanel());
-		// graphComponent.drawChart(memoryGraph.getChart());
+		// add(memoryGraph.getChartPanel());
+		graphComponent.drawChart(memoryGraph.getChart());
 	}
 }
